@@ -23,8 +23,8 @@
   "dependencies": {
     "@middleware.io/nestjs-apm": "^1.0.6",
     "@nestjs/common": "^8.4.3",
-    "@nestjs/core": "^8.4.3",
-    "@nestjs/platform-express": "^8.4.3",
+    "@nestjs/core": "^11.0.12",
+    "@nestjs/platform-express": "^11.0.12",
     "reflect-metadata": "^0.1.13",
     "rimraf": "^3.0.2",
     "rxjs": "^7.5.5"
@@ -32,7 +32,7 @@
   "devDependencies": {
     "@nestjs/cli": "^8.2.4",
     "@nestjs/schematics": "^8.0.9",
-    "@nestjs/testing": "^8.4.3",
+    "@nestjs/testing": "^11.0.12",
     "@types/express": "^4.17.3",
     "@types/jest": "25.1.4",
     "@types/node": "^13.9.1",
