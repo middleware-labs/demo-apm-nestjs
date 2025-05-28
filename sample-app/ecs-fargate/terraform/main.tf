@@ -194,9 +194,16 @@ resource "aws_ecs_task_definition" "app_task" {
           containerPort = 3000,
           hostPort      = 3000,
           protocol      = "tcp"
+          appProtocol   = "http"
         }
       ]
       essential = true
+      environment = [
+        {
+          name  = "OTEL_BSP_SCHEDULE_DELAY"
+          value = "100"
+        }
+      ]
     }
   ])
 }
