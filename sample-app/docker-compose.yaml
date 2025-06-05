@@ -1,0 +1,10 @@
+services:
+  nest-js-demo: 
+    image: ghcr.io/middleware-labs/demo-apm-nestjs:local
+    environment:
+      - MW_API_KEY=xxxxxxxxxxxxxxxxxxxxxxxxx
+      - MW_TARGET=https://xxxx.middleware.io:443
+      - MW_SERVICE_NAME=nestjs-docker-compose
+      - MW_DEBUG=false
+    ports:
+      - 3000:3000

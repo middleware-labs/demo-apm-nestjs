@@ -188,7 +188,7 @@ resource "aws_ecs_task_definition" "app_task" {
   container_definitions = jsonencode([
     {
       name         = "nestjs-app"
-      image        = "ghcr.io/middleware-labs/nest-apm:demo"  # Replace with your actual Docker image
+      image        = "ghcr.io/middleware-labs/demo-apm-nestjs:local"  # Replace with your actual Docker image
       portMappings = [
         {
           containerPort = 3000,
@@ -200,8 +200,24 @@ resource "aws_ecs_task_definition" "app_task" {
       essential = true
       environment = [
         {
-          name  = "OTEL_BSP_SCHEDULE_DELAY"
-          value = "100"
+            name  = "OTEL_BSP_SCHEDULE_DELAY"
+            value = "100"
+        },
+        {
+          name  = "MW_API_KEY"
+          value = "evaddjfmazsdz8qip2cxva99muxv30wq6g6c"
+        },
+        {
+          name  = "MW_TARGET"
+          value = "https://plo4e.middleware.io:443"
+        },
+        {
+          name  = "MW_SERVICE_NAME"
+          value = "nestjs-ecs-fargate-delay"
+        },
+        {
+          name  = "MW_DEBUG"
+          value = "false"
         }
       ]
     }
