@@ -170,6 +170,65 @@ resource "aws_iam_role" "ecs_task_execution_role" {
   })
 }
 
+# Create an IAM Role for ECS Task
+resource "aws_iam_role" "ecs_task_role" {
+  name = "nestECSTaskRole"
+  assume_role_policy = jsonencode({
+    "Version": "2012-10-17",
+    "Statement": [{
+      "Action": "sts:AssumeRole",
+      "Principal": {
+        "Service": "ecs-tasks.amazonaws.com"
+      },
+      "Effect": "Allow"
+    }]
+  })
+}
+
+# Add policy for ECS Execute Command
+resource "aws_iam_role_policy" "ecs_execute_command_policy" {
+  name = "ecs-execute-command-policy"
+  role = aws_iam_role.ecs_task_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "ssmmessages:CreateControlChannel",
+          "ssmmessages:CreateDataChannel",
+          "ssmmessages:OpenControlChannel",
+          "ssmmessages:OpenDataChannel"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+# Add execute command policy to task execution role
+resource "aws_iam_role_policy" "ecs_execute_command_execution_policy" {
+  name = "ecs-execute-command-execution-policy"
+  role = aws_iam_role.ecs_task_execution_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "ssmmessages:CreateControlChannel",
+          "ssmmessages:CreateDataChannel",
+          "ssmmessages:OpenControlChannel",
+          "ssmmessages:OpenDataChannel"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
 # Attach the AWS managed policy for ECS task execution
 resource "aws_iam_role_policy_attachment" "ecs_task_execution_role_policy" {
   role       = aws_iam_role.ecs_task_execution_role.name
@@ -184,6 +243,7 @@ resource "aws_ecs_task_definition" "app_task" {
   cpu                      = "256"
   memory                   = "512"
   execution_role_arn       = aws_iam_role.ecs_task_execution_role.arn
+  task_role_arn           = aws_iam_role.ecs_task_role.arn
 
   container_definitions = jsonencode([
     {
@@ -197,7 +257,15 @@ resource "aws_ecs_task_definition" "app_task" {
           appProtocol   = "http"
         }
       ]
-      essential = true
+      essential = true,
+      "logConfiguration": {
+          "logDriver": "awsfirelens",
+          "options": {
+              "Host": "127.0.0.1",
+              "Name": "forward",
+              "Port": "8006"
+          }
+      },
       environment = [
         {
             name  = "OTEL_BSP_SCHEDULE_DELAY"
@@ -205,11 +273,11 @@ resource "aws_ecs_task_definition" "app_task" {
         },
         {
           name  = "MW_API_KEY"
-          value = "evaddjfmazsdz8qip2cxva99muxv30wq6g6c"
+          value = "xxxxxxxxxxxxxxxxxxx"
         },
         {
           name  = "MW_TARGET"
-          value = "https://plo4e.middleware.io:443"
+          value = "https://xxxxx.middleware.io:443"
         },
         {
           name  = "MW_SERVICE_NAME"
@@ -218,8 +286,56 @@ resource "aws_ecs_task_definition" "app_task" {
         {
           name  = "MW_DEBUG"
           value = "false"
+        },
+        {
+          name  = "OTEL_LOG_LEVEL"
+          value = "debug"
         }
       ]
+    },
+    {
+      "name": "mw-agent",
+      "image": "ghcr.io/middleware-labs/mw-host-agent:master",
+      "cpu": 256,
+      "portMappings": [
+          {
+              "name": "8006-tcp",
+              "containerPort": 8006,
+              "hostPort": 8006,
+              "protocol": "tcp",
+              "appProtocol": "http"
+          }
+      ],
+      "essential": true,
+      "environment": [
+          {
+              "name": "MW_API_KEY",
+              "value": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+          },
+          {
+              "name": "MW_TARGET",
+              "value": "https://xxxxx.middleware.io:443"
+          }
+      ],
+      "mountPoints": [],
+      "volumesFrom": []
+   },
+   {
+        "name": "log_router",
+        "image": "amazon/aws-for-fluent-bit:stable",
+        "cpu": 0,
+        "portMappings": [],
+        "essential": true,
+        "environment": [],
+        "mountPoints": [],
+        "volumesFrom": [],
+        "user": "0",
+        "firelensConfiguration": {
+            "type": "fluentbit",
+            "options": {
+                "enable-ecs-log-metadata": "true"
+            }
+        }
     }
   ])
 }
@@ -232,6 +348,7 @@ resource "aws_ecs_service" "app_service" {
   desired_count   = 1
   launch_type     = "FARGATE"
   platform_version = "LATEST"
+  enable_execute_command = true
 
   network_configuration {
     subnets         = [aws_subnet.public1.id, aws_subnet.public2.id]
