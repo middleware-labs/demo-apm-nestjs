@@ -1,5 +1,6 @@
 provider "aws" {
-  region = "us-east-1"
+  region  = "ap-south-1"
+  profile = "sample"  # Replace "default" with your desired AWS profile name
 }
 
 ###############################
@@ -15,14 +16,14 @@ resource "aws_vpc" "main" {
 resource "aws_subnet" "public1" {
   vpc_id                  = aws_vpc.main.id
   cidr_block              = "10.0.1.0/24"
-  availability_zone       = "us-east-1a"
+  availability_zone       = "ap-south-1a"
   map_public_ip_on_launch = true
 }
 
 resource "aws_subnet" "public2" {
   vpc_id                  = aws_vpc.main.id
   cidr_block              = "10.0.2.0/24"
-  availability_zone       = "us-east-1b"
+  availability_zone       = "ap-south-1b"
   map_public_ip_on_launch = true
 }
 
@@ -248,7 +249,7 @@ resource "aws_ecs_task_definition" "app_task" {
   container_definitions = jsonencode([
     {
       name         = "nestjs-app"
-      image        = "ghcr.io/middleware-labs/demo-apm-nestjs:local"  # Replace with your actual Docker image
+      image        = "ghcr.io/middleware-labs/demo-apm-nestjs:serverless"  # Replace with your actual Docker image
       portMappings = [
         {
           containerPort = 3000,
@@ -258,14 +259,6 @@ resource "aws_ecs_task_definition" "app_task" {
         }
       ]
       essential = true,
-      "logConfiguration": {
-          "logDriver": "awsfirelens",
-          "options": {
-              "Host": "127.0.0.1",
-              "Name": "forward",
-              "Port": "8006"
-          }
-      },
       environment = [
         {
             name  = "OTEL_BSP_SCHEDULE_DELAY"
@@ -273,11 +266,11 @@ resource "aws_ecs_task_definition" "app_task" {
         },
         {
           name  = "MW_API_KEY"
-          value = "xxxxxxxxxxxxxxxxxxx"
+          value = "lneevcqdcnzccpdpbhelkxpjffdxeznkryvb"
         },
         {
           name  = "MW_TARGET"
-          value = "https://xxxxx.middleware.io:443"
+          value = "https://ruplp.middleware.io:443"
         },
         {
           name  = "MW_SERVICE_NAME"
@@ -285,57 +278,13 @@ resource "aws_ecs_task_definition" "app_task" {
         },
         {
           name  = "MW_DEBUG"
-          value = "false"
+          value = "true"
         },
         {
           name  = "OTEL_LOG_LEVEL"
           value = "debug"
         }
       ]
-    },
-    {
-      "name": "mw-agent",
-      "image": "ghcr.io/middleware-labs/mw-host-agent:master",
-      "cpu": 256,
-      "portMappings": [
-          {
-              "name": "8006-tcp",
-              "containerPort": 8006,
-              "hostPort": 8006,
-              "protocol": "tcp",
-              "appProtocol": "http"
-          }
-      ],
-      "essential": true,
-      "environment": [
-          {
-              "name": "MW_API_KEY",
-              "value": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-          },
-          {
-              "name": "MW_TARGET",
-              "value": "https://xxxxx.middleware.io:443"
-          }
-      ],
-      "mountPoints": [],
-      "volumesFrom": []
-   },
-   {
-        "name": "log_router",
-        "image": "amazon/aws-for-fluent-bit:stable",
-        "cpu": 0,
-        "portMappings": [],
-        "essential": true,
-        "environment": [],
-        "mountPoints": [],
-        "volumesFrom": [],
-        "user": "0",
-        "firelensConfiguration": {
-            "type": "fluentbit",
-            "options": {
-                "enable-ecs-log-metadata": "true"
-            }
-        }
     }
   ])
 }

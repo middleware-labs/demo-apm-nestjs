@@ -13,11 +13,12 @@ RUN apk add --no-cache build-base
 WORKDIR /app
 
 # Install dependencies
-COPY package.json ./
-RUN yarn install --ignore-optional
-
 # Copy application files
 COPY . .
+# COPY package.json ./
+RUN yarn install --ignore-optional
+
+
 
 # Generate Prisma Client and build the NestJS app
 # RUN npx prisma generate && yarn build
