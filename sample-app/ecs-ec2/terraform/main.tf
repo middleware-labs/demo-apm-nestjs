@@ -379,7 +379,7 @@ resource "aws_ecs_task_definition" "app_task" {
       name         = "nestjs-app"
       image        = "ghcr.io/middleware-labs/demo-apm-nestjs:local"
       cpu          = 256
-      memory       = 512
+      memory       = 1024
       portMappings = [
         {
           containerPort = 3000,
@@ -424,34 +424,6 @@ resource "aws_ecs_task_definition" "app_task" {
         }
       ]
     },
-    {
-      name = "mw-agent",
-      image = "ghcr.io/middleware-labs/mw-host-agent:master",
-      cpu = 256,
-      memory = 256,
-      portMappings = [
-          {
-              name = "8006-tcp",
-              containerPort = 8006,
-              hostPort = 8006,
-              protocol = "tcp",
-              appProtocol = "http"
-          }
-      ],
-      essential = false,
-      environment = [
-          {
-              name = "MW_API_KEY",
-              value = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-          },
-          {
-              name = "MW_TARGET",
-              value = "https://xxxxx.middleware.io:443"
-          }
-      ],
-      mountPoints = [],
-      volumesFrom = []
-   },
    {
         name = "log_router",
         image = "amazon/aws-for-fluent-bit:stable",
@@ -480,6 +452,7 @@ resource "aws_ecs_service" "app_service" {
   task_definition = aws_ecs_task_definition.app_task.arn
   desired_count   = 1
   launch_type     = "EC2"
+  enable_execute_command = true
 
     load_balancer {
       target_group_arn = aws_lb_target_group.app_tg_ec2.arn
@@ -490,4 +463,123 @@ resource "aws_ecs_service" "app_service" {
   depends_on = [
     aws_lb_listener.app_listener
   ]
+}
+
+# Run mw-agent as a daemon on every EC2 instance
+resource "aws_ecs_task_definition" "mw_agent_daemon" {
+  family                   = "mw-agent-daemon"
+  network_mode             = "bridge"
+  requires_compatibilities = ["EC2"]
+  execution_role_arn       = aws_iam_role.ecs_task_execution_role.arn
+  task_role_arn            = aws_iam_role.ecs_task_role.arn
+
+  container_definitions = jsonencode([
+    {
+      name  = "mw-agent"
+      image = "ghcr.io/middleware-labs/mw-host-agent:1.16.9991"
+      cpu   = 256
+      memory = 256
+      essential = true
+      environment = [
+        {
+          name  = "MW_API_KEY0"
+          value = "mlqrrmzujnkdpwyxjhhtfdbisuwnsrpdrlxd"
+        },
+        {
+          name  = "MW_TARGET0"
+          value = "https://sandbox-ovs.middleware.io"
+        },
+        {
+          name  = "MW_API_KEY"
+          value = "npanajucwjtcsyqqgnidwbsbobuowldmlsjp"
+        },
+        {
+          name  = "MW_TARGET"
+          value = "https://sandbox-bay.middleware.io"
+        },
+        {
+          name  = "MW_OTEL_CONFIG_FILE"
+          value = "/etc/mw-agent/otel-config-base.yaml"
+        },
+        {
+          name  = "MW_FETCH_ACCOUNT_OTEL_CONFIG"
+          value = "false"
+        },
+        {
+          name  = "ECS_CLUSTER_NAME"
+          value = "app-cluster"
+        },
+         {
+          name  = "AWS_REGION"
+          value = "us-east-1"
+        }
+      ]
+      mountPoints = [
+        {
+          containerPath = "/var/run/docker.sock"
+          sourceVolume  = "docker_sock"
+          readOnly      = false
+        },
+        {
+          containerPath = "/var/lib/docker/containers"
+          sourceVolume  = "docker_containers"
+          readOnly      = true
+        },
+        {
+          containerPath = "/sys/fs/cgroup"
+          sourceVolume  = "cgroup"
+          readOnly      = true
+        },
+        {
+          containerPath = "/host/sys/fs/cgroup"
+          sourceVolume  = "cgroup_host"
+          readOnly      = true
+        },
+        {
+          containerPath = "/rootfs/proc"
+          sourceVolume  = "proc"
+          readOnly      = true
+        },
+        {
+          containerPath = "/rootfs/var/lib/docker"
+          sourceVolume  = "docker_root"
+          readOnly      = true
+        }
+      ]
+    }
+  ])
+
+  volume {
+    name = "docker_sock"
+    host_path = "/var/run/docker.sock"
+  }
+  volume {
+    name = "docker_containers"
+    host_path = "/var/lib/docker/containers"
+  }
+  volume {
+    name      = "cgroup"
+    host_path = "/sys/fs/cgroup"
+  }
+  volume {
+    name      = "cgroup_host"
+    host_path = "/sys/fs/cgroup"
+  }
+  volume {
+    name      = "proc"
+    host_path = "/proc"
+  }
+  volume {
+    name      = "docker_root"
+    host_path = "/var/lib/docker"
+  }
+}
+
+resource "aws_ecs_service" "mw_agent_daemon_service" {
+  name                   = "mw-agent-daemon-service"
+  cluster                = aws_ecs_cluster.nestjs_keval_app_cluster.id
+  task_definition        = aws_ecs_task_definition.mw_agent_daemon.arn
+  launch_type            = "EC2"
+  scheduling_strategy    = "DAEMON"
+  enable_execute_command = true
 }
